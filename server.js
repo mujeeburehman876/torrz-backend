@@ -239,26 +239,44 @@ app.delete('/api/calls/end/:callSid', async (req, res) => {
 });
 
 // TwiML response for voice calls
+// ✅ FIXED TwiML for VoIP Client to Phone calls with proper audio routing
 app.post('/api/calls/twiml', (req, res) => {
-    const toNumber = req.body.To || req.query.To;
+    const toNumber = req.query.To || req.body.To;
+    const fromIdentity = req.query.From || req.body.From;
     
-    console.log(`🎤 Generating TwiML for call to: ${toNumber}`);
+    console.log(`🎤 TwiML Request Received`);
+    console.log(`   To: ${toNumber}`);
+    console.log(`   From: ${fromIdentity}`);
+    console.log(`   Query:`, req.query);
+    console.log(`   Body:`, req.body);
     
     const twiml = new twilio.twiml.VoiceResponse();
     
-    twiml.say({
-        voice: 'alice',
-        language: 'en-US'
-    }, 'Hello! This is a call from TORRZ app. Connecting you now.');
-    
     if (toNumber) {
-        twiml.dial({
-            callerId: process.env.TWILIO_PHONE_NUMBER
-        }, toNumber);
+        // Create dial with answerOnBridge for proper audio routing
+        const dial = twiml.dial({
+            callerId: process.env.TWILIO_PHONE_NUMBER,
+            answerOnBridge: true,  // ✅ CRITICAL for audio to work
+            timeout: 30
+        });
+        
+        // Dial the phone number
+        dial.number(toNumber);
+        
+        console.log(`✅ TwiML: Dialing ${toNumber} with answerOnBridge`);
+    } else {
+        console.log(`❌ No destination number provided`);
+        twiml.say({
+            voice: 'alice',
+            language: 'en-US'
+        }, 'No destination number was provided.');
     }
     
+    const twimlResponse = twiml.toString();
+    console.log(`📄 TwiML XML:`, twimlResponse);
+    
     res.type('text/xml');
-    res.send(twiml.toString());
+    res.send(twimlResponse);
 });
 
 // Call status webhook
